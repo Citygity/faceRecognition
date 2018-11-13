@@ -1,34 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Oct 31 22:06:48 2018
+Created on Mon Nov 12 22:59:00 2018
 
 @author: test
 """
-
-from PIL import Image
-import numpy
+import numpy as np
 import pickle
+from PIL import Image
+import os
+database='D:\\code\\pycode\\faceRecognition\\database\\'
+img_rows, img_cols = 640,480
+face_data = np.empty((777, img_rows*img_cols))
+arr=[[]]
+label=[]
+for dir in os.listdir(database):
+    picFolderPath=os.path.join(database,dir)
+    for picname in os.listdir(picFolderPath):
+        if(picname.endswith('JPG')):
+            img = Image.open(os.path.join(picFolderPath,picname))
+            print("dir {} {} ".format(dir,picname))
+            img = img.resize((224, 224))
+            R,G,B=img.split()
+            r_array = np.array(R).reshape([224*224])/255
+            g_array = np.array(G).reshape([224*224])/255
+            b_array = np.array(B).reshape([224*224])/255
+            merge_array = np.concatenate((r_array,g_array,b_array))
+            if arr == [[]]:
+                arr = [merge_array]
+                continue
+            arr = np.concatenate((arr, [merge_array]),axis=0)
+            label.append(int(dir))
 
-img = Image.open('G:\data\olivettifaces.gif')
-# numpy supports conversion from image to ndarray and normalization by dividing 255
-# 1140 * 942 ndarray
-img_ndarray = numpy.asarray(img, dtype='float64') / 255
-# create numpy array of 400*2679
-img_rows, img_cols = 57, 47
-face_data = numpy.empty((400, img_rows*img_cols))
-# convert 1140*942 ndarray to 400*2679 matrix
-
-for row in range(20):
-    for col in range(20):
-        face_data[row*20+col] = numpy.ndarray.flatten(img_ndarray[row*img_rows:(row+1)*img_rows, col*img_cols:(col+1)*img_cols])
-
-# create label
-face_label = numpy.empty(400, dtype=int)
-for i in range(400):
-    face_label[i] = i / 10
-
-# pickling file
-f = open('G:\data\olivettifaces.pkl','wb')
-# store data and label as a tuple
-pickle.dump((face_data,face_label), f)
-f.close()
+dic = {'data': arr,'label':label}
+f = open('./img2array.bin','wb')
+pickle.dump(dic,f)          
