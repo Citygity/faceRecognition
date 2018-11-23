@@ -4,19 +4,18 @@ Created on Wed Nov 21 22:25:20 2018
 
 @author: ray
 """
-import random
-import pandas as pd
-import numpy as np
-from sklearn.cross_validation import train_test_split
+from keras.datasets import cifar100
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Flatten
-from keras.layers import Convolution2D, MaxPooling2D
+from keras.layers import Conv2D, MaxPooling2D, BatchNormalization,Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
-from keras.utils import np_utils
-from keras.models import load_model
+from keras.layers.core import Lambda
 from keras import backend as K
-
+from keras import regularizers
+from sklearn.preprocessing import LabelBinarizer
+import numpy as np
+import pandas as pd
 from load_face_dataset import load_dataset, resize_image, IMAGE_SIZE
 
 class Dataset:
@@ -40,7 +39,7 @@ class Dataset:
         self.input_shape = None
         
     #加载数据集并按照交叉验证的原则划分数据集并进行相关预处理工作
-    def load(self, img_rows = 480, img_cols = 640, 
+    def load(self, img_rows = 224, img_cols = 224, 
              img_channels = 3, nb_classes = 111):
         #加载数据集到内存
         images, labels = load_dataset(self.path_name)  
@@ -89,55 +88,140 @@ class Dataset:
         train_images /= 255
         valid_images /= 255
         test_images /= 255            
-    
+        lb=LabelBinarizer().fit(np.array(range(0,nb_classes)))
+        
         self.train_images = train_images
         self.valid_images = valid_images
         self.test_images  = test_images
-        self.train_labels = train_labels
-        self.valid_labels = valid_labels
-        self.test_labels  = test_labels
+        self.train_labels = lb.transform(train_labels)
+        self.valid_labels = lb.transform(valid_labels)
+        self.test_labels  = lb.transform(test_labels)
 
 #CNN网络模型类            
 class Model:
     def __init__(self):
         self.model = None 
+        self.num_classes = 111
+        self.weight_decay = 0.0005
+        self.x_shape = [224,224,3]
         
     #建立模型
     def build_model(self, dataset, nb_classes = 111):
         #构建一个空的网络模型，它是一个线性堆叠模型，各神经网络层会被顺序添加，专业名称为序贯模型或线性堆叠模型
         self.model = Sequential() 
-        
+        weight_decay=self.weight_decay
         #以下代码将顺序添加CNN网络需要的各层，一个add就是一个网络层
-        self.model.add(Convolution2D(32, 3, 3, border_mode='same', 
-                                     input_shape = (480,640,3)))#dataset.input_shape))    #1 2维卷积层
-        self.model.add(Activation('relu'))                                  #2 激活函数层
-        
-        self.model.add(Convolution2D(32, 3, 3))                             #3 2维卷积层                             
-        self.model.add(Activation('relu'))                                  #4 激活函数层
-        
-        self.model.add(MaxPooling2D(pool_size=(2, 2)))                      #5 池化层
-        self.model.add(Dropout(0.25))                                       #6 Dropout层
+#        self.model.add(Convolution2D(32, 3, 3, border_mode='same', 
+#                                     input_shape = (480,640,3)))#dataset.input_shape))    #1 2维卷积层
+#        self.model.add(Activation('relu'))                                  #2 激活函数层
+#        
+#        self.model.add(Convolution2D(32, 3, 3))                             #3 2维卷积层                             
+#        self.model.add(Activation('relu'))                                  #4 激活函数层
+#        
+#        self.model.add(MaxPooling2D(pool_size=(2, 2)))                      #5 池化层
+#        self.model.add(Dropout(0.25))                                       #6 Dropout层
+#
+#        self.model.add(Convolution2D(64, 3, 3, border_mode='same'))         #7  2维卷积层
+#        self.model.add(Activation('relu'))                                  #8  激活函数层
+#        
+#        self.model.add(Convolution2D(64, 3, 3))                             #9  2维卷积层
+#        self.model.add(Activation('relu'))                                  #10 激活函数层
+#        
+#        self.model.add(MaxPooling2D(pool_size=(2, 2)))                      #11 池化层
+#        self.model.add(Dropout(0.25))                                       #12 Dropout层
+#
+#        self.model.add(Flatten())                                           #13 Flatten层
+#        self.model.add(Dense(512))                                          #14 Dense层,又被称作全连接层
+#        self.model.add(Activation('relu'))                                  #15 激活函数层   
+#        self.model.add(Dropout(0.5))                                        #16 Dropout层
+#        self.model.add(Dense(nb_classes))                                   #17 Dense层
+#        self.model.add(Activation('softmax'))                               #18 分类层，输出最终结果
+        self.model.add(Conv2D(64, (3, 3), padding='same',
+                         input_shape=self.x_shape,kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.3))
 
-        self.model.add(Convolution2D(64, 3, 3, border_mode='same'))         #7  2维卷积层
-        self.model.add(Activation('relu'))                                  #8  激活函数层
-        
-        self.model.add(Convolution2D(64, 3, 3))                             #9  2维卷积层
-        self.model.add(Activation('relu'))                                  #10 激活函数层
-        
-        self.model.add(MaxPooling2D(pool_size=(2, 2)))                      #11 池化层
-        self.model.add(Dropout(0.25))                                       #12 Dropout层
+        self.model.add(Conv2D(64, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
 
-        self.model.add(Flatten())                                           #13 Flatten层
-        self.model.add(Dense(512))                                          #14 Dense层,又被称作全连接层
-        self.model.add(Activation('relu'))                                  #15 激活函数层   
-        self.model.add(Dropout(0.5))                                        #16 Dropout层
-        self.model.add(Dense(nb_classes))                                   #17 Dense层
-        self.model.add(Activation('softmax'))                               #18 分类层，输出最终结果
-        
+        self.model.add(MaxPooling2D(pool_size=(2, 2)))
+
+        self.model.add(Conv2D(128, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.4))
+
+        self.model.add(Conv2D(128, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+
+        self.model.add(MaxPooling2D(pool_size=(2, 2)))
+
+        self.model.add(Conv2D(256, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.4))
+
+        self.model.add(Conv2D(256, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.4))
+
+        self.model.add(Conv2D(256, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+
+        self.model.add(MaxPooling2D(pool_size=(2, 2)))
+
+
+        self.model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.4))
+
+        self.model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.4))
+
+        self.model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+
+        self.model.add(MaxPooling2D(pool_size=(2, 2)))
+
+
+        self.model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.4))
+
+        self.model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.4))
+
+        self.model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+
+        self.model.add(MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(Dropout(0.5))
+
+        self.model.add(Flatten())
+        self.model.add(Dense(512,kernel_regularizer=regularizers.l2(weight_decay)))
+        self.model.add(Activation('relu'))
+        self.model.add(BatchNormalization())
+
+        self.model.add(Dropout(0.5))
+        self.model.add(Dense(nb_classes))
+        self.model.add(Activation('softmax'))
         #输出模型概况
         self.model.summary()
         #训练模型
-    def train(self, dataset, batch_size = 20, nb_epoch = 10, data_augmentation = False):        
+    def train(self, dataset, batch_size = 2, nb_epoch = 10, data_augmentation = False):        
         sgd = SGD(lr = 0.01, decay = 1e-6, 
                   momentum = 0.9, nesterov = True) #采用SGD+momentum的优化器进行训练，首先生成一个优化器对象  
         self.model.compile(loss='categorical_crossentropy',
@@ -178,6 +262,9 @@ class Model:
                                      samples_per_epoch = dataset.train_images.shape[0],
                                      nb_epoch = nb_epoch,
                                      validation_data = (dataset.valid_images, dataset.valid_labels))
+    def evaluate(self, dataset):
+        score = self.model.evaluate(dataset.test_images, dataset.test_labels, verbose = 1)
+        print("%s: %.2f%%" % (self.model.metrics_names[1], score[1] * 100))
 if __name__ == '__main__':
     dataset = Dataset('D:\\code\\pycode\\faceRecognition\\database\\')    
     dataset.load()
@@ -185,3 +272,4 @@ if __name__ == '__main__':
     model = Model()
     model.build_model(dataset)
     model.train(dataset)    
+    model.evaluate(dataset)
