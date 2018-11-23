@@ -53,6 +53,7 @@ def read_path(path_name):
             if(picname.endswith('JPG')):
                 labels.append(int(dir))
                 image = cv2.imread(os.path.join(picFolderPath,picname))
+                image=cv2.resize(image,224,224)
                 images.append(image)
     return images,labels
     
